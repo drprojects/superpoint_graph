@@ -143,7 +143,9 @@ class GraphConvFunction(Function):
                                             lambda a: a.unsqueeze(1),
                                             lambda b: b.transpose_(2, 1))
 
-            grad_input.index_add_(0, ctx._idxn.narrow(0, starte, nume), sel_input.squeeze(1))
+            sel_input = sel_input.squeeze(0)
+
+            grad_input.index_add_(0, ctx._idxn.narrow(0, starte, nume), sel_input)
 
             startd += numd
             starte += nume
