@@ -13,7 +13,8 @@ try:
     import cupy.cuda
     from pynvrtc.compiler import Program
 except:
-    pass
+    # pass
+    import cupy
 from collections import namedtuple
 import numpy as np
 
@@ -30,25 +31,45 @@ def get_dtype(t):
     elif isinstance(t, torch.cuda.DoubleTensor):
         return 'double'
    
+# def get_kernel_func(kname, ksrc, dtype):
+#     if kname+dtype not in modules:
+#         ksrc = ksrc.replace('DTYPE', dtype)
+#         #prog = Program(ksrc.encode('utf-8'), (kname+dtype+'.cu').encode('utf-8'))
+#         #uncomment the line above and comment the line below if it causes the following error: AttributeError: 'Program' object has no attribute '_program'
+#         prog = Program(ksrc, kname+dtype+'.cu')
+#         ptx = prog.compile()
+#         log = prog._interface.nvrtcGetProgramLog(prog._program)
+#         if len(log.strip()) > 0: print(log)
+#         module = cupy.cuda.function.Module()
+#         module.load(bytes(ptx.encode()))
+#         modules[kname+dtype] = module
+#     else:
+#         module = modules[kname+dtype]
+#
+#     Stream = namedtuple('Stream', ['ptr'])
+#     s = Stream(ptr=torch.cuda.current_stream().cuda_stream)
+#
+#     return module.get_function(kname), s
+
 def get_kernel_func(kname, ksrc, dtype):
-    if kname+dtype not in modules:
+    key = kname + dtype
+    if key not in modules:
         ksrc = ksrc.replace('DTYPE', dtype)
-        #prog = Program(ksrc.encode('utf-8'), (kname+dtype+'.cu').encode('utf-8'))
-        #uncomment the line above and comment the line below if it causes the following error: AttributeError: 'Program' object has no attribute '_program'
-        prog = Program(ksrc, kname+dtype+'.cu')        
-        ptx = prog.compile()
-        log = prog._interface.nvrtcGetProgramLog(prog._program)
-        if len(log.strip()) > 0: print(log)
-        module = cupy.cuda.function.Module()
-        module.load(bytes(ptx.encode()))
-        modules[kname+dtype] = module
+
+        # Modern CuPy way: compile and store the module
+        module = cupy.RawModule(code=ksrc, options=('--std=c++11',), name_expressions=(kname,))
+        modules[key] = module
     else:
-        module = modules[kname+dtype]
-        
+        module = modules[key]
+
+    # Get function
+    func = module.get_function(kname)
+
+    # Wrap current PyTorch CUDA stream into the CuPy style stream object
     Stream = namedtuple('Stream', ['ptr'])
-    s = Stream(ptr=torch.cuda.current_stream().cuda_stream)        
-        
-    return module.get_function(kname), s
+    s = Stream(ptr=torch.cuda.current_stream().cuda_stream)
+
+    return func, s
         
 ####       
        
