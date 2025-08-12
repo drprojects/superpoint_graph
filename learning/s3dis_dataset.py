@@ -110,7 +110,7 @@ def preprocess_pointclouds(args):
             if file.endswith(".h5"):
                 f = h5py.File(pathD + file, 'r')
                 xyz = f['xyz'][:]
-                rgb = f['rgb'][:].astype(np.float)
+                rgb = f['rgb'][:].astype(np.float32)
 
                 labels = f['labels'][:]
                 hard_labels = np.argmax(labels[:,1:],1)

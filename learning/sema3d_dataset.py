@@ -108,7 +108,7 @@ def preprocess_pointclouds(SEMA3D_PATH):
                     class_count = class_count + label_count
                 
                 xyz = f['xyz'][:]
-                rgb = f['rgb'][:].astype(np.float)
+                rgb = f['rgb'][:].astype(np.float32)
                 elpsv = np.concatenate((f['xyz'][:,2][:,None], f['geof'][:]), axis=1)
 
                 # rescale to [-0.5,0.5]; keep xyz
