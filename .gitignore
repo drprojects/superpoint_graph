@@ -3,3 +3,4 @@
 *.vscode
 *.so
 partition/ply_c/build
+.idea

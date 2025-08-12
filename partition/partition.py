@@ -45,7 +45,7 @@ elif args.dataset == 'custom_dataset':
 else:
     raise ValueError('%s is an unknown data set' % dataset)
 
-times = [0,0,0] #time for computing: features / partition / spg
+times = dict(voxelization=0, features=0, partition=0, spg=0)
 
 if not os.path.isdir(root + "clouds"):
     os.mkdir(root + "clouds")
@@ -121,15 +121,21 @@ for folder in folders:
             if args.dataset=='s3dis':
                 xyz, rgb, labels, objects = read_s3dis_format(data_file)
                 if args.voxel_width > 0:
+                    start = timer()
                     xyz, rgb, labels, dump = libply_c.prune(xyz.astype('f4'), args.voxel_width, rgb.astype('uint8'), labels.astype('uint8'), np.zeros(1, dtype='uint8'), n_labels, 0)
+                    end = timer()
+                    times['voxelization'] += end - start
             elif args.dataset=='sema3d':
                 label_file = data_folder + file_name + ".labels"
                 has_labels = (os.path.isfile(label_file))
+                start = timer()
                 if (has_labels):
                     xyz, rgb, labels = read_semantic3d_format(data_file, n_labels, label_file, args.voxel_width, args.ver_batch)
                 else:
                     xyz, rgb = read_semantic3d_format(data_file, 0, '', args.voxel_width, args.ver_batch)
                     labels = []
+                end = timer()
+                times['voxelization'] += end - start
             elif args.dataset=='custom_dataset':
                 #implement in provider.py your own read_custom_format outputing xyz, rgb, labels
                 #example for ply files
@@ -137,10 +143,13 @@ for folder in folders:
                 #another one for las files without rgb
                 xyz = read_las(data_file)
                 if args.voxel_width > 0:
+                    start = timer()
                     #an example of pruning without labels
                     xyz, rgb, labels = libply_c.prune(xyz, args.voxel_width, rgb, np.array(1,dtype='u1'), 0)
                     #another one without rgb information nor labels
                     xyz = libply_c.prune(xyz, args.voxel_width, np.zeros(xyz.shape,dtype='u1'), np.array(1,dtype='u1'), 0)[0]
+                    end = timer()
+                    times['voxelization'] += end - start
                 #if no labels available simply set here labels = []
                 #if no rgb available simply set here rgb = [] and make sure to not use it later on
             start = timer()
@@ -149,7 +158,7 @@ for folder in folders:
             #---compute geometric features-------
             geof = libply_c.compute_geof(xyz, target_fea, args.k_nn_geof).astype('float32')
             end = timer()
-            times[0] = times[0] + end - start
+            times['features'] += end - start
             del target_fea
             write_features(fea_file, geof, xyz, rgb, graph_nn, labels)
         #--compute the partition------
@@ -178,12 +187,14 @@ for folder in folders:
                                          , graph_nn["edge_weight"], args.reg_strength)
             components = np.array(components, dtype = 'object')
             end = timer()
-            times[1] = times[1] + end - start
+            times['partition'] += end - start
             print("        computation of the SPG...")
             start = timer()
             graph_sp = compute_sp_graph(xyz, args.d_se_max, in_component, components, labels, n_labels)
             end = timer()
-            times[2] = times[2] + end - start
+            times['spg'] += end - start
             write_spg(spg_file, graph_sp, components, in_component)
-        
-        print("Timer : %5.1f / %5.1f / %5.1f " % (times[0], times[1], times[2]))
+
+        print("Times")
+        for k, v in times.items():
+            print(f"  {k:<20}: {v:0.3f}")
