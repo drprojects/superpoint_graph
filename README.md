@@ -21,6 +21,46 @@ by Loic Landrieu and Mohamed Boussaha (CVPR2019),
 
 <img src="http://recherche.ign.fr/llandrieu/SPG/ssp.png" width="900">
 
+
+# Damien installation notes
+
+```bash
+module load v100-32g
+module load cuda/11.8.0
+
+
+ln -s /home/darobe/wegner/darobe/data/s3dis/raw/Area_1 Area_1
+ln -s /home/darobe/wegner/darobe/data/s3dis/raw/Area_2 Area_2
+ln -s /home/darobe/wegner/darobe/data/s3dis/raw/Area_3 Area_3
+ln -s /home/darobe/wegner/darobe/data/s3dis/raw/Area_4 Area_4
+ln -s /home/darobe/wegner/darobe/data/s3dis/raw/Area_5 Area_5
+ln -s /home/darobe/wegner/darobe/data/s3dis/raw/Area_6 Area_6
+
+
+S3DIS_DIR=/home/darobe/wegner/darobe/data/s3dis/spg
+
+python partition/partition.py --dataset s3dis --ROOT_PATH $S3DIS_DIR --voxel_width 0.03 --reg_strength 0.03
+
+python learning/s3dis_dataset.py --S3DIS_PATH $S3DIS_DIR
+
+export LD_LIBRARY_PATH=/apps/opt/spack/linux-ubuntu20.04-x86_64/gcc-9.3.0/cuda-11.8.0-ifsva5xy3gliwzlokewxc5lxklbej3gj/lib64:$LD_LIBRARY_PATH
+
+FOLD=5
+CUDA_VISIBLE_DEVICES=0 python learning/main.py --dataset s3dis --S3DIS_PATH $S3DIS_DIR --cvfold $FOLD --epochs 350 --lr_steps '[275,320]' --test_nth_epoch 50 --model_config 'gru_10_0,f_13' --ptn_nfeat_stn 14 --nworkers 2 --pc_attribs xyzrgbelpsvXYZ --odir "results/s3dis/best/cv${FOLD}" --nworkers 4
+
+
+
+python supervized_partition/graph_processing.py --ROOT_PATH $S3DIS_DIR --dataset s3dis --voxel_width 0.03; \
+
+for FOLD in 1 2 3 4 5 6; do \
+    python ./supervized_partition/supervized_partition.py --ROOT_PATH $S3DIS_DIR  --cvfold $FOLD --epochs -1 \
+    --odir results_partition/s3dis/pretrained --reg_strength 0.1 --spatial_emb 0.2 --global_feat eXYrgb \
+    --CP_cutoff 25 --resume RESUME; \
+done
+
+```
+
+
 ## Code structure
 * `./partition/*` - Partition code (geometric partitioning and superpoint graph construction using handcrafted features)
 * `./supervized_partition/*` - Supervized partition code (partitioning with learned features)

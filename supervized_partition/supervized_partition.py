@@ -22,6 +22,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import MultiStepLR
 import torchnet as tnt
+from time import time
 
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(DIR_PATH, '..'))
@@ -248,7 +249,9 @@ def embed(args):
     def evaluate(i_epoch):
         """ Evaluated model on test set """
         model.eval()
-        
+
+        times = dict(ssp_inference=0)
+
         with torch.no_grad():
             
             loader = torch.utils.data.DataLoader(test_dataset , batch_size=1, collate_fn=graph_collate, num_workers=args.nworkers)
@@ -271,8 +274,12 @@ def embed(args):
                     clouds, clouds_global, nei = clouds_data
                     clouds_data = (clouds.to('cuda',non_blocking=True),clouds_global.to('cuda',non_blocking=True),nei) 
 
+                torch.cuda.synchronize()
+                start = time()
                 embeddings = ptnCloudEmbedder.run_batch(model, *clouds_data, xyz)
-            
+                torch.cuda.synchronize()
+                times['ssp_inference'] += time() - start
+
                 diff = compute_dist(embeddings, edg_source, edg_target, args.dist_type)
                 
                 if len(is_transition)>1:
@@ -292,7 +299,7 @@ def embed(args):
                     BR_meter.add((is_transition.sum())*compute_boundary_recall(is_transition, relax_edge_binary(pred_transition, edg_source, edg_target, xyz.shape[0], args.BR_tolerance)),n=is_transition.sum())
                     BP_meter.add((pred_transition.sum())*compute_boundary_precision(relax_edge_binary(is_transition, edg_source, edg_target, xyz.shape[0], args.BR_tolerance), pred_transition),n=pred_transition.sum())
         CM = CM_classes.confusion_matrix
-        return loss_meter.value()[0], n_clusters_meter.value()[0], 100*CM.trace() / CM.sum(), BR_meter.value()[0], BP_meter.value()[0]
+        return loss_meter.value()[0], n_clusters_meter.value()[0], 100*CM.trace() / CM.sum(), BR_meter.value()[0], BP_meter.value()[0], times
     
     def evaluate_final():
         """ Evaluated model on test set """
@@ -311,7 +318,9 @@ def embed(args):
             loader = torch.utils.data.DataLoader(test_dataset , batch_size=1, collate_fn=graph_collate, num_workers=args.nworkers)
                 
             if logging.getLogger().getEffectiveLevel() > logging.DEBUG: loader = tqdm(loader, ncols=100)
-    
+
+            times = dict(ssp_inference=0)
+
     # iterate over dataset in batches
             for bidx, (fname, edg_source, edg_target, is_transition, labels, objects, clouds_data, xyz) in enumerate(loader):
 
@@ -320,12 +329,16 @@ def embed(args):
                     #labels = torch.from_numpy(labels).cuda()
                     objects = objects.to('cuda',non_blocking=True)
                     clouds, clouds_global, nei = clouds_data
-                    clouds_data = (clouds.to('cuda',non_blocking=True),clouds_global.to('cuda',non_blocking=True),nei) 
-                
+                    clouds_data = (clouds.to('cuda',non_blocking=True),clouds_global.to('cuda',non_blocking=True),nei)
+
+                torch.cuda.synchronize()
+                start = time()
                 if args.dataset=='sema3d':
                     embeddings = ptnCloudEmbedder.run_batch_cpu(model, *clouds_data, xyz)
                 else:
                     embeddings = ptnCloudEmbedder.run_batch(model, *clouds_data, xyz)
+                torch.cuda.synchronize()
+                times['ssp_inference'] += time() - start
                 
                 diff = compute_dist(embeddings, edg_source, edg_target, args.dist_type)
                     
@@ -371,6 +384,12 @@ def embed(args):
                 res_file.create_dataset('n_clusters'
                                  , data=n_clusters_meter.value()[0], dtype='uint64')
                 res_file.close()
+
+
+
+            print("\n================================")
+            print(f"Fold: {args.cvfold} | SSP inference time: {times['ssp_inference']}")
+            print("\n================================")
                 
         return
     
@@ -385,7 +404,7 @@ def embed(args):
         loss, n_sp = train(epoch)
 
         if (epoch+1) % args.test_nth_epoch == 0: #or epoch+1==args.epochs:
-            loss_test, n_clusters_test, ASA_test, BR_test, BP_test = evaluate(epoch)
+            loss_test, n_clusters_test, ASA_test, BR_test, BP_test, times = evaluate(epoch)
             print('-> Train loss: %1.5f - Test Loss: %1.5f  |  n_clusters:  %5.1f  |  ASA: %3.2f %%  |  Test BR: %3.2f %%  |  BP : %3.2f%%' % (loss, loss_test, n_clusters_test, ASA_test, BR_test, BP_test))
         else:
             loss_test, n_clusters_test, ASA_test, BR_test, BP_test = 0,0,0,0,0
