@@ -197,7 +197,7 @@ def read_s3dis_format(raw_path, label_out=True):
         return xyz, rgb
     n_ver = len(room_ver)
     del room_ver
-    nn = NearestNeighbors(1, algorithm='kd_tree').fit(xyz)
+    nn = NearestNeighbors(n_neighbors=1, algorithm='kd_tree').fit(xyz)
     room_labels = np.zeros((n_ver,), dtype='uint8')
     room_object_indices = np.zeros((n_ver,), dtype='uint32')
     objects = glob.glob(os.path.dirname(raw_path) + "/Annotations/*.txt")
