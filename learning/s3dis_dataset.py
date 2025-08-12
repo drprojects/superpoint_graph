@@ -168,4 +168,7 @@ if __name__ == "__main__":
     parser.add_argument('--supervized_partition', type=int, default=0)
     parser.add_argument('--plane_model_elevation', type=int, default=0, help='compute elevation with a simple RANSAC based plane model')
     args = parser.parse_args()
+    from time import time
+    start = time()
     preprocess_pointclouds(args)
+    print(f"Time: {time() - start:0.3f}")
