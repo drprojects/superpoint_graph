@@ -52,6 +52,9 @@ CUDA_VISIBLE_DEVICES=0 python learning/main.py --dataset s3dis --S3DIS_PATH $S3D
 
 python supervized_partition/graph_processing.py --ROOT_PATH $S3DIS_DIR --dataset s3dis --voxel_width 0.03; \
 
+FOLD=5
+python ./supervized_partition/supervized_partition.py --ROOT_PATH $S3DIS_DIR  --cvfold $FOLD --epochs -1 --odir results_partition/s3dis/pretrained --reg_strength 0.1 --spatial_emb 0.2 --global_feat eXYrgb --CP_cutoff 25 --resume RESUME
+
 for FOLD in 1 2 3 4 5 6; do \
     python ./supervized_partition/supervized_partition.py --ROOT_PATH $S3DIS_DIR  --cvfold $FOLD --epochs -1 \
     --odir results_partition/s3dis/pretrained --reg_strength 0.1 --spatial_emb 0.2 --global_feat eXYrgb \
